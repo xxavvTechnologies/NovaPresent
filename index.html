@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-TMC4G33B54"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-TMC4G33B54');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>Nova Docs - Professional Online Document Editor</title>
+    <meta name="description" content="Nova Docs is a powerful, free online document editor. Create, edit, and share documents easily.">
+    <meta name="keywords" content="document editor, online editor, text editor, rich text editor, Nova Docs">
+    <meta name="author" content="xxavvTechnologies">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://docs.nova.xxavvgroup.com/">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Nova Docs - Online Document Editor">
+    <meta property="og:description" content="Create and edit documents with Nova Docs' powerful online editor. Free, secure, and easy to use.">
+    <meta property="og:image" content="https://d2zcpib8duehag.cloudfront.net/Nova-Docs-Preview.png">
+    <meta property="og:url" content="https://docs.nova.xxavvgroup.com/">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nova Docs - Professional Online Document Editor">
+    <meta name="twitter:description" content="Create and edit documents with Nova Docs' powerful online editor. Free, secure, and easy to use.">
+    <meta name="twitter:image" content="https://d2zcpib8duehag.cloudfront.net/Nova-Docs-Preview.png">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "http://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Nova Docs",
+        "applicationCategory": "Document Editor",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "xxavvTechnologies",
+            "url": "https://tech.xxavvgroup.com"
+        },
+        "description": "A powerful, free online document editor. Create, edit, and share documents easily.",
+        "image": "https://d2zcpib8duehag.cloudfront.net/Nova%20Docs%20w_o%20text.png",
+        "screenshot": "https://d2zcpib8duehag.cloudfront.net/Nova-Docs-Preview.png"
+    }
+    </script>
+
+    <link rel="icon" type="image/x-icon" href="https://d2zcpib8duehag.cloudfront.net/Nova%20Docs%20w_o%20text.png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/1.13/auth0-spa-js.production.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+</head>
+<body>
+    <div id="update-banner" class="update-banner">
+        <span>🎉 We've updated Nova Docs with exciting new features! </span>
+        <a href="changelog.html">See what's new</a>
+        <button class="close-banner" onclick="dismissBanner()">×</button>
+    </div>
+    <header>
+        <div class="logo-container">
+            <img src="https://d2zcpib8duehag.cloudfront.net/Nova%20Docs%20w_o%20text.png" alt="Nova Docs" height="45">
+            <div class="logo-submenu">
+                <h3>Nova Docs</h3>
+                <div class="app-info">
+                    <p><span class="label">Documents:</span> <span id="document-count">Loading...</span></p>
+                    <p><span class="label">Version:</span> <span>2.5.2</span></p>
+                    <p><span class="label">Developer:</span> <span>xxavvTechnologies</span></p>
+                    <p><span class="label">Last Updated:</span> <span>January 20, 2025</span></p>
+                </div>
+                <a href="https://tech.xxavvgroup.com/nova/docs" target="_blank">
+                    Legal & Technical Information →
+                </a>
+            </div>
+        </div>
+        <div class="user-dropdown">
+            <button class="dropbtn" id="profile-button">
+                <i class="fas fa-user-circle"></i>
+            </button>
+            <div class="dropdown-content" id="dropdown-menu">
+                <!-- Placeholder for user dropdown links -->
+            </div>
+        </div>
+    </header>
+    
+    <!-- Notification Container -->
+    <div class="notification-container" id="notification-container"></div>
+    
+    <!-- Document Name Input -->
+    <div class="document-actions">
+        <input 
+            type="text" 
+            id="document-name" 
+            placeholder="Enter document name" 
+            class="document-name-input"
+        >
+        <div class="document-buttons">
+            <button id="save-document" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save
+            </button>
+            <button id="new-document" class="btn btn-secondary">
+                <i class="fas fa-plus"></i> New
+            </button>
+            <button id="export-txt" class="btn btn-export">
+                <i class="fas fa-file-export"></i> Export TXT
+            </button>
+            <button id="export-html" class="btn btn-export">
+                <i class="fas fa-file-code"></i> Export HTML
+            </button>
+        </div>
+    </div>
+
+    <!-- Document List -->
+    <div class="document-list-container">
+        <button class="btn btn-secondary toggle-list" id="toggle-document-list">
+            <i class="fas fa-chevron-down"></i> Show Documents
+        </button>
+        <div id="document-list" class="document-list" style="display: none;">
+            <!-- Dynamically populated list of saved documents -->
+        </div>
+    </div>
+    
+    <!-- New Formatting Bar -->
+    <div class="formatting-bar">
+        <div class="formatting-group">
+            <select id="font-select" class="formatting-select">
+                <option value="Arial" selected>Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Verdana">Verdana</option>
+            </select>
+            <select id="font-size-select" class="formatting-select">
+                <option value="1">12</option>
+                <option value="2">14</option>
+                <option value="3">16</option>
+                <option value="4">18</option>
+                <option value="5">20</option>
+                <option value="6">24</option>
+            </select>
+        </div>
+        
+        <div class="formatting-group">
+            <button class="formatting-btn" data-command="bold" title="Bold">
+                <i class="fas fa-bold"></i>
+            </button>
+            <button class="formatting-btn" data-command="italic" title="Italic">
+                <i class="fas fa-italic"></i>
+            </button>
+            <button class="formatting-btn" data-command="underline" title="Underline">
+                <i class="fas fa-underline"></i>
+            </button>
+            <button class="formatting-btn" data-command="strikethrough" title="Strikethrough">
+                <i class="fas fa-strikethrough"></i>
+            </button>
+        </div>
+        
+        <div class="formatting-group">
+            <button class="formatting-btn" data-command="justifyLeft" title="Align Left">
+                <i class="fas fa-align-left"></i>
+            </button>
+            <button class="formatting-btn" data-command="justifyCenter" title="Align Center">
+                <i class="fas fa-align-center"></i>
+            </button>
+            <button class="formatting-btn" data-command="justifyRight" title="Align Right">
+                <i class="fas fa-align-right"></i>
+            </button>
+            <button class="formatting-btn" data-command="justifyFull" title="Justify">
+                <i class="fas fa-align-justify"></i>
+            </button>
+        </div>
+        
+        <div class="formatting-group">
+            <button class="formatting-btn" data-command="insertUnorderedList" title="Unordered List">
+                <i class="fas fa-list-ul"></i>
+            </button>
+            <button class="formatting-btn" data-command="insertOrderedList" title="Ordered List">
+                <i class="fas fa-list-ol"></i>
+            </button>
+        </div>
+        
+        <div class="formatting-group">
+            <input type="color" id="text-color-picker" class="formatting-color-picker" title="Text Color">
+            <input type="color" id="highlight-color-picker" class="formatting-color-picker" title="Highlight Color">
+        </div>
+        
+        <div class="formatting-group">
+            <button class="formatting-btn" data-command="insertImage" title="Insert Image">
+                <i class="fas fa-image"></i>
+            </button>
+            <button class="formatting-btn" data-command="insertTable" title="Insert Table">
+                <i class="fas fa-table"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Image Upload Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Insert Image</h2>
+            <div class="upload-options">
+                <input type="file" id="imageInput" accept="image/*">
+                <button id="uploadImageBtn">Upload</button>
+                <button id="imageUrlBtn">Insert from URL</button>
+            </div>
+            <div id="cropperContainer" style="display: none;">
+                <img id="cropperImage" src="">
+                <div class="cropper-controls">
+                    <button id="rotateLeft">↶ Rotate Left</button>
+                    <button id="rotateRight">↷ Rotate Right</button>
+                    <button id="cropImage">Crop</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Modal -->
+    <div id="tableModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Insert Table</h2>
+            <div class="table-controls">
+                <div class="input-group">
+                    <label for="tableRows">Rows:</label>
+                    <input type="number" id="tableRows" min="1" max="50" value="3">
+                </div>
+                <div class="input-group">
+                    <label for="tableCols">Columns:</label>
+                    <input type="number" id="tableCols" min="1" max="20" value="3">
+                </div>
+                <button id="insertTableBtn">Insert Table</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Editor Area -->
+    <main>
+        <div id="editor" contenteditable="true" class="editor">
+        </div>
+    </main>
+
+    <script src="authentication.js"></script>
+    <script src="app.js" type="module"></script>
+    <script>
+        document.getElementById("profile-button").addEventListener("click", function() {
+            var dropdown = document.querySelector(".user-dropdown");
+            dropdown.classList.toggle("active");
+        });
+
+        document.getElementById("toggle-document-list").addEventListener("click", function () {
+    const documentList = document.getElementById("document-list");
+    const toggleButton = this;
+
+    if (documentList.style.display === "none") {
+        documentList.style.display = "block";
+        toggleButton.innerHTML = '<i class="fas fa-chevron-up"></i> Hide Documents';
+    } else {
+        documentList.style.display = "none";
+        toggleButton.innerHTML = '<i class="fas fa-chevron-down"></i> Show Documents';
+    }
+});
+
+        function dismissBanner() {
+            const banner = document.getElementById('update-banner');
+            banner.style.display = 'none';
+            localStorage.setItem('updbanner2.5', 'true');
+        }
+
+        // Check if banner was previously dismissed
+        window.addEventListener('DOMContentLoaded', () => {
+            const isDismissed = localStorage.getItem('updbanner2.5');
+            if (isDismissed === 'true') {
+                const banner = document.getElementById('update-banner');
+                banner.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
