@@ -195,11 +195,9 @@ class Presentation {
         this.slideContextMenu = document.getElementById('slideContextMenu');
         this.elementContextMenu = document.getElementById('elementContextMenu');
         this.contextMenuActive = false;
-        this.showRulers = true;
         this.init();
         this.initToolbarDrag();
         this.initPanelToggles();
-        this.initRulers();
     }
 
     init() {
@@ -1233,25 +1231,6 @@ class Presentation {
 
         // Update toolbar state on selection
         document.addEventListener('selectionchange', () => this.updateToolbarState());
-
-        // Update grid controls
-        const snapToGrid = document.getElementById('snapToGrid');
-        const gridSize = document.getElementById('gridSize');
-        const gridColor = document.getElementById('gridColor');
-
-        snapToGrid.addEventListener('change', (e) => {
-            this.snapToGrid = e.target.checked;
-        });
-
-        gridSize.addEventListener('change', (e) => {
-            this.gridSize = parseInt(e.target.value);
-            if (this.gridEnabled) this.renderGrid();
-        });
-
-        gridColor.addEventListener('change', (e) => {
-            this.gridColor = e.target.value;
-            if (this.gridEnabled) this.renderGrid();
-        });
     }
 
     updateToolbarState() {
@@ -1280,36 +1259,31 @@ class Presentation {
     }
 
     renderGrid() {
-        if (!this.gridEnabled) {
-            if (this.currentSlide.querySelector('.grid-overlay')) {
-                this.currentSlide.querySelector('.grid-overlay').innerHTML = '';
-            }
-            return;
-        }
-
         let gridOverlay = this.currentSlide.querySelector('.grid-overlay');
+        
         if (!gridOverlay) {
             gridOverlay = document.createElement('div');
             gridOverlay.className = 'grid-overlay';
             this.currentSlide.appendChild(gridOverlay);
         }
 
-        const bounds = this.currentSlide.getBoundingClientRect();
-        const svg = `
-            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <pattern id="grid" width="${this.gridSize}" height="${this.gridSize}" patternUnits="userSpaceOnUse">
-                        <path d="M ${this.gridSize} 0 L 0 0 0 ${this.gridSize}" 
-                              fill="none" 
-                              stroke="${this.gridColor}" 
-                              stroke-width="0.5"
-                              vector-effect="non-scaling-stroke"/>
-                    </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>`;
-        
-        gridOverlay.innerHTML = svg;
+        if (this.gridEnabled) {
+            const svg = `
+                <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <pattern id="grid" width="${this.gridSize}" height="${this.gridSize}" patternUnits="userSpaceOnUse">
+                            <path d="M ${this.gridSize} 0 L 0 0 0 ${this.gridSize}" 
+                                  fill="none" 
+                                  stroke="${this.gridColor}" 
+                                  stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                </svg>`;
+            gridOverlay.innerHTML = svg;
+        } else {
+            gridOverlay.innerHTML = '';
+        }
     }
 
     snapToGridValue(value) {
@@ -1319,10 +1293,9 @@ class Presentation {
 
     updateElementPosition(element, x, y) {
         if (this.snapToGrid) {
-            x = Math.round(x / this.gridSize) * this.gridSize;
-            y = Math.round(y / this.gridSize) * this.gridSize;
+            x = this.snapToGridValue(x);
+            y = this.snapToGridValue(y);
         }
-        
         element.style.left = `${x}px`;
         element.style.top = `${y}px`;
     }
@@ -1461,76 +1434,6 @@ class Presentation {
                 propertiesPanel.classList.remove('active');
             }
         });
-    }
-
-    initRulers() {
-        const editorArea = document.querySelector('.editor-area');
-        
-        // Create rulers
-        this.rulerH = document.createElement('div');
-        this.rulerV = document.createElement('div');
-        this.rulerH.className = 'ruler-h';
-        this.rulerV.className = 'ruler-v';
-        
-        editorArea.appendChild(this.rulerH);
-        editorArea.appendChild(this.rulerV);
-        
-        this.updateRulers();
-        
-        // Add ruler toggle to toolbar
-        const toolbarGroup = document.querySelector('.toolbar-group:last-child');
-        const rulerToggle = document.createElement('button');
-        rulerToggle.innerHTML = '<i class="fas fa-ruler-combined"></i>';
-        rulerToggle.title = 'Toggle Rulers';
-        rulerToggle.onclick = () => this.toggleRulers();
-        toolbarGroup.appendChild(rulerToggle);
-    }
-
-    updateRulers() {
-        if (!this.showRulers) return;
-        
-        const canvas = this.currentSlide;
-        const bounds = canvas.getBoundingClientRect();
-        
-        // Clear existing markers
-        this.rulerH.innerHTML = '';
-        this.rulerV.innerHTML = '';
-        
-        // Add markers every 50 pixels
-        for (let x = 0; x < bounds.width; x += 50) {
-            const marker = document.createElement('div');
-            marker.className = 'ruler-marker';
-            marker.style.left = `${x}px`;
-            marker.textContent = x;
-            
-            const line = document.createElement('div');
-            line.className = 'ruler-line';
-            line.style.left = `${x}px`;
-            
-            this.rulerH.appendChild(marker);
-            this.rulerH.appendChild(line);
-        }
-        
-        for (let y = 0; y < bounds.height; y += 50) {
-            const marker = document.createElement('div');
-            marker.className = 'ruler-marker';
-            marker.style.top = `${y}px`;
-            marker.textContent = y;
-            
-            const line = document.createElement('div');
-            line.className = 'ruler-line';
-            line.style.top = `${y}px`;
-            
-            this.rulerV.appendChild(marker);
-            this.rulerV.appendChild(line);
-        }
-    }
-
-    toggleRulers() {
-        this.showRulers = !this.showRulers;
-        this.rulerH.style.display = this.showRulers ? 'block' : 'none';
-        this.rulerV.style.display = this.showRulers ? 'block' : 'none';
-        if (this.showRulers) this.updateRulers();
     }
 }
 
