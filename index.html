@@ -107,15 +107,27 @@
                     <div class="element-properties">
                         <input type="color" id="elementColor" title="Color">
                         <input type="number" id="elementOpacity" min="0" max="100" value="100" title="Opacity">
-                        <button id="bringForward" title="Bring Forward"><i class="fas fa-level-up-alt"></i></button>
-                        <button id="sendBackward" title="Send Backward"><i class="fas fa-level-down-alt"></i></button>
-                        <button id="deleteElement" title="Delete"><i class="fas fa-trash"></i></button>
+                        <button id="centerHorizontally" title="Center Horizontally">
+                            <i class="fas fa-align-center fa-rotate-90"></i>
+                        </button>
+                        <button id="centerVertically" title="Center Vertically">
+                            <i class="fas fa-align-center"></i>
+                        </button>
+                        <button id="bringForward" title="Bring Forward">
+                            <i class="fas fa-level-up-alt"></i>
+                        </button>
+                        <button id="sendBackward" title="Send Backward">
+                            <i class="fas fa-level-down-alt"></i>
+                        </button>
+                        <button id="deleteElement" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
 
                 <div class="property-group">
                     <label>Grid Settings</label>
-                    <div class="grid-controls">
+                    <div class="grid-controls" id="gridControls">
                         <label>
                             <input type="checkbox" id="snapToGrid">
                             Snap to Grid
@@ -130,6 +142,22 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Replace the extensions-sidebar div with this -->
+        <div class="extensions-sidebar">
+            <div class="resize-handle"></div>
+            <div class="extensions-header">
+                <button id="addExtension" title="Add Extension">
+                    <i class="fas fa-puzzle-piece"></i>
+                </button>
+            </div>
+            <div class="extension-icons" id="extensionIcons">
+                <!-- Extension icons will be added here -->
+            </div>
+            <div class="extensions-list" id="extensionsList">
+                <!-- Active extension will be shown here -->
             </div>
         </div>
     </div>
@@ -233,6 +261,37 @@
         <div class="context-menu-item" data-action="delete">
             <i class="fas fa-trash"></i> Delete
             <span class="shortcut">Del</span>
+        </div>
+    </div>
+
+    <div class="modal" id="extensionStore">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Extension Store</h2>
+                <button class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="extensions-grid">
+                <div class="extension-card" data-extension="novaGists">
+                    <div class="extension-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <div class="extension-info">
+                        <h3>Nova Gists</h3>
+                        <p>Access your Nova Gists directly in NovaPresent</p>
+                    </div>
+                    <button class="install-btn" onclick="presentation.installExtension('novaGists', this)">Install</button>
+                </div>
+                <div class="extension-card" data-extension="coming-soon">
+                    <div class="extension-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="extension-info">
+                        <h3>More Coming Soon</h3>
+                        <p>Stay tuned for more extensions</p>
+                    </div>
+                    <button class="install-btn" disabled>Coming Soon</button>
+                </div>
+            </div>
         </div>
     </div>
 </body>

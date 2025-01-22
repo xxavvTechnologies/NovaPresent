@@ -56,6 +56,12 @@ class PresentationsManager {
     constructor() {
         this.maxPresentations = 50;
         this.currentPresentationId = null;
+        this.folders = JSON.parse(localStorage.getItem('presentation_folders')) || {
+            default: {
+                name: 'All Presentations',
+                presentations: []
+            }
+        };
     }
 
     getAllPresentations() {
@@ -93,6 +99,50 @@ class PresentationsManager {
 
     canCreateNew() {
         return Object.keys(this.getAllPresentations()).length < this.maxPresentations;
+    }
+
+    saveFolders() {
+        localStorage.setItem('presentation_folders', JSON.stringify(this.folders));
+    }
+
+    createFolder(name) {
+        const folderId = `folder_${Date.now()}`;
+        this.folders[folderId] = {
+            name,
+            presentations: []
+        };
+        this.saveFolders();
+        return folderId;
+    }
+
+    movePresentation(presentationId, targetFolderId) {
+        // Remove from all folders
+        Object.values(this.folders).forEach(folder => {
+            folder.presentations = folder.presentations.filter(id => id !== presentationId);
+        });
+        
+        // Add to target folder
+        this.folders[targetFolderId].presentations.push(presentationId);
+        this.saveFolders();
+    }
+
+    renameFolder(folderId, newName) {
+        if (this.folders[folderId]) {
+            this.folders[folderId].name = newName;
+            this.saveFolders();
+        }
+    }
+
+    deleteFolder(folderId) {
+        if (folderId === 'default') return false;
+        
+        // Move presentations to default folder
+        const presentations = this.folders[folderId].presentations;
+        this.folders.default.presentations.push(...presentations);
+        
+        delete this.folders[folderId];
+        this.saveFolders();
+        return true;
     }
 }
 
@@ -195,20 +245,41 @@ class Presentation {
         this.slideContextMenu = document.getElementById('slideContextMenu');
         this.elementContextMenu = document.getElementById('elementContextMenu');
         this.contextMenuActive = false;
+        this.installedExtensions = new Set(JSON.parse(localStorage.getItem('installedExtensions') || '[]'));
+        this.sidebarWidth = parseInt(localStorage.getItem('sidebarWidth')) || 300;
+        this.activeExtension = null;
+        this.currentPresentationId = localStorage.getItem('lastOpenedPresentation');
         this.init();
         this.initToolbarDrag();
         this.initPanelToggles();
+        this.setupGrid();
+        this.initExtensions();
     }
 
     init() {
         this.bindElements();
         this.bindEvents();
+        
+        // Show presentation manager first if no presentation is open
+        if (!this.currentPresentationId) {
+            this.togglePresentationManager();
+        } else {
+            const presentation = this.manager.loadPresentation(this.currentPresentationId);
+            if (presentation) {
+                this.loadPresentation(presentation.id);
+            } else {
+                this.togglePresentationManager();
+            }
+        }
+        
         this.setupPresentationList();
-        this.createNewSlide();
         this.autoSave();
         this.initializeElementTools();
         this.initializeRichTextTools();
-        this.notifications.show('Presentation loaded', 'success');
+        this.initToolbarDrag();
+        this.initPanelToggles();
+        this.setupGrid();
+        this.initExtensions();
         this.initContextMenus();
     }
 
@@ -525,26 +596,31 @@ class Presentation {
 
     showMinimalSaveStatus(status = 'success') {
         const now = Date.now();
-        // Only show new notification if enough time has passed
         if (now - this.lastNotificationTime < this.notificationThrottle) {
             return;
         }
         
-        const statusText = document.getElementById('saveStatus');
-        if (!statusText) {
-            const statusContainer = document.createElement('div');
-            statusContainer.id = 'saveStatus';
-            statusContainer.className = 'save-status';
-            document.querySelector('.presentation-controls').appendChild(statusContainer);
-        }
-
+        let saveStatus = document.getElementById('saveStatus');
+        if (!saveStatus) return;
+        
+        // Reset animation by removing and re-adding the element
+        const parent = saveStatus.parentElement;
+        const clone = saveStatus.cloneNode(true);
+        parent.replaceChild(clone, saveStatus);
+        saveStatus = clone;
+        
         const statusIcon = status === 'success' ? 
             '<i class="fas fa-check"></i>' : 
-            '<i class="fas fa-exclamation-circle"></i>';
+            '<i class="fas fa-times"></i>';
         
-        document.getElementById('saveStatus').innerHTML = statusIcon;
-        document.getElementById('saveStatus').className = `save-status ${status}`;
-
+        saveStatus.innerHTML = statusIcon;
+        saveStatus.className = `save-status ${status}`;
+        
+        // Auto-hide after 2 seconds
+        setTimeout(() => {
+            saveStatus.style.opacity = '0';
+        }, 2000);
+        
         this.lastNotificationTime = now;
     }
 
@@ -665,113 +741,135 @@ class Presentation {
         this.presentationContainer.classList.add('active');
         document.body.style.overflow = 'hidden';
         
-        // Initialize presentation controls
-        const controls = this.presentationContainer.querySelector('.presentation-controls');
-        const prevBtn = document.getElementById('prevSlide');
-        const nextBtn = document.getElementById('nextSlide');
-        const exitBtn = document.getElementById('exitPresentation');
-        
-        prevBtn.onclick = () => this.previousSlide();
-        nextBtn.onclick = () => this.nextSlide();
-        exitBtn.onclick = () => this.exitPresentation();
-        
-        // Mouse movement handler for controls visibility
-        let hideTimeout;
-        const handleMouseMove = () => {
-            controls.classList.remove('hidden');
-            clearTimeout(hideTimeout);
-            hideTimeout = setTimeout(() => {
-                controls.classList.add('hidden');
-            }, 3000);
+        // Calculate and set available space CSS variables
+        const updateAvailableSpace = () => {
+            const { innerWidth, innerHeight } = window;
+            document.documentElement.style.setProperty('--available-width', `${innerWidth}px`);
+            document.documentElement.style.setProperty('--available-height', `${innerHeight}px`);
         };
         
-        this.presentationContainer.addEventListener('mousemove', handleMouseMove);
-        this.presentationContainer.addEventListener('click', handleMouseMove);
+        updateAvailableSpace();
+        window.addEventListener('resize', updateAvailableSpace);
         
-        // Initial hide timeout
-        handleMouseMove();
+        // Initialize controls
+        this.initPresentationControls();
         
-        // Keyboard controls
-        this.presentationKeyHandler = (e) => this.handlePresentationKeyboard(e);
-        document.addEventListener('keydown', this.presentationKeyHandler);
-        
-        // Show keyboard shortcuts
-        this.showKeyboardShortcuts();
-        
-        // Clear and render first slide
-        this.presentationSlide.innerHTML = '';
+        // Render first slide
         this.renderPresentationSlide();
         this.updateSlideCounter();
-
+        
         // Store cleanup functions
         this.presentationCleanup = () => {
-            clearTimeout(hideTimeout);
-            this.presentationContainer.removeEventListener('mousemove', handleMouseMove);
-            this.presentationContainer.removeEventListener('click', handleMouseMove);
+            window.removeEventListener('resize', updateAvailableSpace);
             document.removeEventListener('keydown', this.presentationKeyHandler);
+            this.presentationContainer.removeEventListener('mousemove', this.handleMouseMove);
+            clearTimeout(this.controlsTimeout);
         };
     }
 
-    renderPresentationSlide(direction = 'none') {
-        const slide = this.slides[this.currentSlideIndex];
+    initPresentationControls() {
+        const controls = this.presentationContainer.querySelector('.presentation-controls');
         
-        // Create new slide content
-        const content = document.createElement('div');
-        content.className = 'slide-content';
-        content.style.backgroundColor = slide.backgroundColor;
+        // Button controls
+        document.getElementById('prevSlide').onclick = () => this.previousSlide();
+        document.getElementById('nextSlide').onclick = () => this.nextSlide();
+        document.getElementById('exitPresentation').onclick = () => this.exitPresentation();
+        
+        // Auto-hide controls
+        let controlsTimeout;
+        const handleMouseMove = () => {
+            controls.classList.remove('hidden');
+            clearTimeout(controlsTimeout);
+            controlsTimeout = setTimeout(() => controls.classList.add('hidden'), 3000);
+        };
+        
+        this.presentationContainer.addEventListener('mousemove', handleMouseMove);
+        handleMouseMove();
+        
+        // Keyboard controls
+        this.presentationKeyHandler = (e) => {
+            switch(e.key) {
+                case 'ArrowRight':
+                case 'Space':
+                case 'PageDown':
+                    e.preventDefault();
+                    this.nextSlide();
+                    break;
+                case 'ArrowLeft':
+                case 'PageUp':
+                    e.preventDefault();
+                    this.previousSlide();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    this.exitPresentation();
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    this.toggleFullscreen();
+                    break;
+            }
+        };
+        
+        document.addEventListener('keydown', this.presentationKeyHandler);
+    }
+
+    renderPresentationSlide(direction = 'next') {
+        const slide = this.slides[this.currentSlideIndex];
+        if (!slide) return;
+
+        // Create new slide container
+        const newSlide = document.createElement('div');
+        newSlide.className = 'slide-content';
+        newSlide.style.backgroundColor = slide.backgroundColor;
 
         // Add transition classes
-        if (direction !== 'none') {
-            content.classList.add(`slide-enter-${direction}`);
-        }
-        
-        // Clone slide elements
+        newSlide.classList.add(`slide-enter-${direction}`);
+
+        // Render slide elements
         if (slide.elements && Array.isArray(slide.elements)) {
             slide.elements.forEach(elementData => {
-                try {
-                    const element = document.createElement('div');
-                    element.className = `slide-element ${elementData.type}-element`;
-                    element.style.position = 'absolute';
-                    element.style.left = `${elementData.x}px`;
-                    element.style.top = `${elementData.y}px`;
-                    element.style.width = `${elementData.width}px`;
-                    element.style.height = `${elementData.height}px`;
-                    element.style.zIndex = elementData.zIndex;
+                const element = document.createElement('div');
+                element.className = `slide-element ${elementData.type}-element`;
+                Object.assign(element.style, {
+                    position: 'absolute',
+                    left: `${elementData.x}px`,
+                    top: `${elementData.y}px`,
+                    width: `${elementData.width}px`,
+                    height: `${elementData.height}px`,
+                    zIndex: elementData.zIndex,
+                    backgroundColor: elementData.type !== 'text' ? elementData.color : 'transparent',
+                    opacity: elementData.type !== 'text' ? elementData.opacity / 100 : 1,
+                    borderRadius: elementData.type === 'circle' ? '50%' : ''
+                });
 
-                    if (elementData.type === 'text') {
-                        element.innerHTML = elementData.content || '';
-                    } else {
-                        element.style.backgroundColor = elementData.color;
-                        element.style.opacity = elementData.opacity / 100;
-                        if (elementData.type === 'circle') {
-                            element.style.borderRadius = '50%';
-                        }
-                    }
-
-                    content.appendChild(element);
-                } catch (error) {
-                    console.error('Failed to render element:', error);
+                if (elementData.type === 'text') {
+                    element.innerHTML = elementData.content || '';
                 }
+
+                newSlide.appendChild(element);
             });
         }
 
-        // Handle transitions
-        const currentContent = this.presentationSlide.querySelector('.slide-content');
-        if (currentContent) {
-            const exitDirection = direction === 'right' ? 'left' : 'right';
-            currentContent.classList.add(`slide-exit-${exitDirection}`);
-            currentContent.addEventListener('animationend', () => {
-                currentContent.remove();
-            }, { once: true });
+        // Handle slide transition
+        const currentSlide = this.presentationSlide.querySelector('.slide-content');
+        if (currentSlide) {
+            currentSlide.classList.add(`slide-exit-${direction}`);
+            currentSlide.addEventListener('animationend', () => currentSlide.remove(), { once: true });
         }
 
-        this.presentationSlide.appendChild(content);
+        this.presentationSlide.appendChild(newSlide);
+    }
 
-        // Remove any orphaned slides after animation
-        setTimeout(() => {
-            const oldSlides = this.presentationSlide.querySelectorAll('.slide-content:not(:last-child)');
-            oldSlides.forEach(slide => slide.remove());
-        }, 300);
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            this.presentationContainer.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
     }
 
     nextSlide() {
@@ -895,40 +993,215 @@ class Presentation {
     }
 
     setupPresentationList() {
+        const organizer = document.createElement('div');
+        organizer.className = 'presentation-organizer';
+        
+        // Add organize controls
+        organizer.innerHTML = `
+            <div class="organize-controls">
+                <button class="primary-btn" id="newFolder">
+                    <i class="fas fa-folder-plus"></i> New Folder
+                </button>
+                <select id="viewMode" class="secondary-btn">
+                    <option value="all">All Presentations</option>
+                    <option value="folders">By Folders</option>
+                </select>
+            </div>
+        `;
+
         const presentations = this.manager.getAllPresentations();
-        this.presentationsList.innerHTML = Object.values(presentations)
-            .sort((a, b) => b.lastModified - a.lastModified)
-            .map(p => `
-                <div class="presentation-item">
-                    <div class="presentation-info">
-                        <div class="presentation-title">${p.title}</div>
-                        <div class="presentation-date">Last modified: ${new Date(p.lastModified).toLocaleString()}</div>
-                    </div>
-                    <div class="presentation-actions">
-                        <button class="primary-btn" onclick="presentation.loadAndClose(${p.id})">
-                            <i class="fas fa-folder-open"></i> Open
+        const folders = this.manager.folders;
+
+        // Render folders view
+        Object.entries(folders).forEach(([folderId, folder]) => {
+            const folderElement = this.createFolderElement(folderId, folder, presentations);
+            organizer.appendChild(folderElement);
+        });
+
+        this.presentationsList.innerHTML = '';
+        this.presentationsList.appendChild(organizer);
+
+        // Add event listeners
+        document.getElementById('newFolder').addEventListener('click', () => {
+            const name = prompt('Enter folder name:');
+            if (name) {
+                const folderId = this.manager.createFolder(name);
+                this.setupPresentationList();
+            }
+        });
+
+        document.getElementById('viewMode').addEventListener('change', (e) => {
+            const presentations = document.querySelectorAll('.presentation-item');
+            const folders = document.querySelectorAll('.folder-section');
+            
+            if (e.target.value === 'folders') {
+                presentations.forEach(p => p.style.display = 'none');
+                folders.forEach(f => f.style.display = 'block');
+            } else {
+                presentations.forEach(p => p.style.display = 'flex');
+                folders.forEach(f => f.style.display = 'none');
+            }
+        });
+    }
+
+    createFolderElement(folderId, folder, presentations) {
+        const div = document.createElement('div');
+        div.className = 'folder-section';
+        div.innerHTML = `
+            <div class="folder-header" data-folder="${folderId}">
+                <i class="fas fa-chevron-right folder-toggle"></i>
+                <span class="folder-name">${folder.name}</span>
+                <input type="text" class="folder-name-input" value="${folder.name}">
+                <div class="folder-actions">
+                    ${folderId !== 'default' ? `
+                        <button class="secondary-btn rename-folder">
+                            <i class="fas fa-edit"></i>
                         </button>
-                        <button class="delete-btn" onclick="presentation.deletePresentation(${p.id})">
+                        <button class="secondary-btn delete-folder">
                             <i class="fas fa-trash"></i>
                         </button>
-                    </div>
+                    ` : ''}
                 </div>
-            `).join('');
+            </div>
+            <div class="folder-content">
+                ${folder.presentations.map(id => {
+                    const p = presentations[`presentation_${id}`];
+                    if (!p) return '';
+                    return this.renderPresentationItem(p, true);
+                }).join('')}
+            </div>
+        `;
+
+        // Add folder event listeners
+        const header = div.querySelector('.folder-header');
+        const content = div.querySelector('.folder-content');
+        const toggle = div.querySelector('.folder-toggle');
+        
+        header.addEventListener('click', (e) => {
+            if (e.target.closest('.folder-actions')) return;
+            content.classList.toggle('expanded');
+            toggle.classList.toggle('expanded');
+        });
+
+        const renameBtn = div.querySelector('.rename-folder');
+        if (renameBtn) {
+            renameBtn.addEventListener('click', () => {
+                const nameSpan = div.querySelector('.folder-name');
+                const nameInput = div.querySelector('.folder-name-input');
+                
+                nameSpan.style.display = 'none';
+                nameInput.classList.add('active');
+                nameInput.focus();
+                
+                nameInput.addEventListener('blur', () => {
+                    this.manager.renameFolder(folderId, nameInput.value);
+                    nameSpan.textContent = nameInput.value;
+                    nameSpan.style.display = 'block';
+                    nameInput.classList.remove('active');
+                });
+            });
+        }
+
+        const deleteBtn = div.querySelector('.delete-folder');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                if (confirm('Delete this folder? Presentations will be moved to "All Presentations"')) {
+                    this.manager.deleteFolder(folderId);
+                    this.setupPresentationList();
+                }
+            });
+        }
+
+        return div;
+    }
+
+    renderPresentationItem(p, inFolder = false) {
+        // ... existing presentation item HTML ...
+        const html = `
+            <div class="presentation-item ${p.id === this.currentPresentationId ? 'active' : ''}" 
+                 data-id="${p.id}">
+                ${p.id === this.currentPresentationId ? '<div class="active-badge">Current</div>' : ''}
+                <div class="presentation-info">
+                    <div class="presentation-title">${p.title}</div>
+                    <input type="text" class="presentation-title-input" value="${p.title}">
+                    <div class="presentation-date">Last modified: ${new Date(p.lastModified).toLocaleString()}</div>
+                </div>
+                <div class="presentation-actions">
+                    ${!inFolder ? `
+                        <select class="move-to-folder secondary-btn">
+                            <option value="">Move to folder...</option>
+                            ${Object.entries(this.manager.folders)
+                                .map(([id, f]) => `<option value="${id}">${f.name}</option>`)
+                                .join('')}
+                        </select>
+                    ` : ''}
+                    <button class="secondary-btn rename-presentation">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="primary-btn" onclick="presentation.loadAndClose(${p.id})">
+                        <i class="fas fa-folder-open"></i> Open
+                    </button>
+                    <button class="delete-btn" onclick="presentation.deletePresentation(${p.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const template = document.createElement('div');
+        template.innerHTML = html;
+        const element = template.firstElementChild;
+
+        // Add rename functionality
+        const renameBtn = element.querySelector('.rename-presentation');
+        renameBtn.addEventListener('click', () => {
+            const titleDiv = element.querySelector('.presentation-title');
+            const titleInput = element.querySelector('.presentation-title-input');
+            
+            titleDiv.style.display = 'none';
+            titleInput.classList.add('active');
+            titleInput.focus();
+            
+            titleInput.addEventListener('blur', () => {
+                p.title = titleInput.value;
+                this.manager.savePresentation(p.id, p.title, p.slides);
+                titleDiv.textContent = titleInput.value;
+                titleDiv.style.display = 'block';
+                titleInput.classList.remove('active');
+            });
+        });
+
+        // Add folder move functionality
+        const moveSelect = element.querySelector('.move-to-folder');
+        if (moveSelect) {
+            moveSelect.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    this.manager.movePresentation(p.id, e.target.value);
+                    this.setupPresentationList();
+                }
+            });
+        }
+
+        return element.outerHTML;
+    }
+
+    loadAndClose(id) {
+        this.loadPresentation(id);
+        localStorage.setItem('lastOpenedPresentation', id);
+        this.currentPresentationId = id;
+        this.togglePresentationManager();
+        this.setupPresentationList(); // Refresh list to show active state
     }
 
     deletePresentation(id) {
         if (confirm('Are you sure you want to delete this presentation?')) {
-            try {
-                this.manager.deletePresentation(id);
-                this.setupPresentationList();
-                if (this.id === id) {
-                    this.createNewPresentation();
-                }
-                this.notifications.show('Presentation deleted', 'success');
-            } catch (error) {
-                this.notifications.show('Failed to delete presentation', 'error');
-                console.error('Delete error:', error);
+            this.manager.deletePresentation(id);
+            if (this.currentPresentationId === id) {
+                localStorage.removeItem('lastOpenedPresentation');
+                this.currentPresentationId = null;
             }
+            this.setupPresentationList();
+            this.notifications.show('Presentation deleted', 'success');
         }
     }
 
@@ -951,6 +1224,17 @@ class Presentation {
         this.bringForwardBtn.addEventListener('click', () => this.updateElementZIndex(1));
         this.sendBackwardBtn.addEventListener('click', () => this.updateElementZIndex(-1));
         this.deleteElementBtn.addEventListener('click', () => this.deleteSelectedElement());
+
+        // Add alignment buttons event listeners
+        const centerH = document.getElementById('centerHorizontally');
+        const centerV = document.getElementById('centerVertically');
+        
+        if (centerH) {
+            centerH.addEventListener('click', () => this.centerElementHorizontally());
+        }
+        if (centerV) {
+            centerV.addEventListener('click', () => this.centerElementVertically());
+        }
     }
 
     addElement(type) {
@@ -1008,6 +1292,13 @@ class Presentation {
             let x = e.clientX - rect.left - this.dragOffset.x;
             let y = e.clientY - rect.top - this.dragOffset.y;
 
+            // Apply grid snapping if enabled
+            if (this.snapToGrid) {
+                x = this.snapToGridValue(x);
+                y = this.snapToGridValue(y);
+            }
+
+            // Constrain to slide boundaries
             x = Math.max(0, Math.min(x, rect.width - this.selectedElement.offsetWidth));
             y = Math.max(0, Math.min(y, rect.height - this.selectedElement.offsetHeight));
 
@@ -1182,7 +1473,10 @@ class Presentation {
 
     loadAndClose(id) {
         this.loadPresentation(id);
+        localStorage.setItem('lastOpenedPresentation', id);
+        this.currentPresentationId = id;
         this.togglePresentationManager();
+        this.setupPresentationList(); // Refresh list to show active state
     }
 
     initializeRichTextTools() {
@@ -1434,6 +1728,241 @@ class Presentation {
                 propertiesPanel.classList.remove('active');
             }
         });
+    }
+
+    setupGrid() {
+        // Add grid controls to properties panel
+        const gridControls = this.getRequiredElement('gridControls');
+        const toggleGrid = document.getElementById('toggleGrid');
+        const snapToGrid = document.getElementById('snapToGrid');
+        const gridSize = document.getElementById('gridSize');
+        const gridColor = document.getElementById('gridColor');
+
+        toggleGrid.addEventListener('click', () => this.toggleGrid());
+        snapToGrid.addEventListener('change', (e) => this.toggleSnapToGrid(e.target.checked));
+        gridSize.addEventListener('change', (e) => this.updateGridSize(parseInt(e.target.value)));
+        gridColor.addEventListener('change', (e) => this.updateGridColor(e.target.value));
+    }
+
+    toggleSnapToGrid(enabled) {
+        this.snapToGrid = enabled;
+        if (enabled && this.selectedElement) {
+            // Snap current element to grid
+            const rect = this.selectedElement.getBoundingClientRect();
+            const slideRect = this.currentSlide.getBoundingClientRect();
+            const x = rect.left - slideRect.left;
+            const y = rect.top - slideRect.top;
+            this.updateElementPosition(this.selectedElement, x, y);
+        }
+    }
+
+    updateGridSize(size) {
+        this.gridSize = Math.max(5, Math.min(100, size));
+        if (this.gridEnabled) {
+            this.renderGrid();
+        }
+        if (this.snapToGrid && this.selectedElement) {
+            // Re-snap element to new grid size
+            const rect = this.selectedElement.getBoundingClientRect();
+            const slideRect = this.currentSlide.getBoundingClientRect();
+            const x = rect.left - slideRect.left;
+            const y = rect.top - slideRect.top;
+            this.updateElementPosition(this.selectedElement, x, y);
+        }
+    }
+
+    updateGridColor(color) {
+        this.gridColor = color;
+        if (this.gridEnabled) {
+            this.renderGrid();
+        }
+    }
+
+    centerElementHorizontally() {
+        if (!this.selectedElement) return;
+        const slideRect = this.currentSlide.getBoundingClientRect();
+        const elementRect = this.selectedElement.getBoundingClientRect();
+        const x = (slideRect.width - elementRect.width) / 2;
+        this.updateElementPosition(this.selectedElement, x, parseInt(this.selectedElement.style.top));
+        this.updateElementData();
+        this.save();
+    }
+
+    centerElementVertically() {
+        if (!this.selectedElement) return;
+        const slideRect = this.currentSlide.getBoundingClientRect();
+        const elementRect = this.selectedElement.getBoundingClientRect();
+        const y = (slideRect.height - elementRect.height) / 2;
+        this.updateElementPosition(this.selectedElement, parseInt(this.selectedElement.style.left), y);
+        this.updateElementData();
+        this.save();
+    }
+
+    initExtensions() {
+        // Extension store
+        const addExtBtn = document.getElementById('addExtension');
+        const extensionStore = document.getElementById('extensionStore');
+        const closeStore = extensionStore.querySelector('.modal-close');
+        const sidebar = document.querySelector('.extensions-sidebar');
+        const resizeHandle = sidebar.querySelector('.resize-handle');
+        
+        // Resize functionality
+        let isResizing = false;
+        
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'ew-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const mainContainer = document.querySelector('.main-container');
+            const newWidth = Math.max(300, document.body.clientWidth - e.clientX);
+            
+            sidebar.style.width = `${newWidth}px`;
+            mainContainer.style.gridTemplateColumns = `240px 1fr 240px ${newWidth}px`;
+            this.sidebarWidth = newWidth;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                localStorage.setItem('sidebarWidth', this.sidebarWidth);
+            }
+        });
+
+        // Store handlers
+        addExtBtn.addEventListener('click', () => {
+            extensionStore.classList.add('active');
+        });
+        
+        closeStore.addEventListener('click', () => {
+            extensionStore.classList.remove('active');
+        });
+
+        // Install handlers
+        const installButtons = document.querySelectorAll('.install-btn');
+        installButtons.forEach(btn => {
+            const card = btn.closest('.extension-card');
+            if (!card) return;
+            
+            const extId = card.dataset.extension;
+            if (this.installedExtensions.has(extId)) {
+                btn.textContent = 'Installed';
+                btn.disabled = true;
+            }
+
+            btn.addEventListener('click', () => this.installExtension(extId, btn));
+        });
+
+        this.loadInstalledExtensions();
+    }
+
+    loadInstalledExtensions() {
+        const extensionIcons = document.getElementById('extensionIcons');
+        extensionIcons.innerHTML = '';
+
+        this.installedExtensions.forEach(extId => {
+            if (extId === 'novaGists') {
+                const iconBtn = document.createElement('button');
+                iconBtn.className = 'extension-icon-button';
+                iconBtn.innerHTML = '<i class="fas fa-code"></i>';
+                iconBtn.title = 'Nova Gists';
+                
+                iconBtn.addEventListener('click', () => this.toggleExtension(extId, iconBtn));
+                extensionIcons.appendChild(iconBtn);
+            }
+        });
+    }
+
+    toggleExtension(extId, iconBtn) {
+        const sidebar = document.querySelector('.extensions-sidebar');
+        const extensionsList = document.getElementById('extensionsList');
+        const mainContainer = document.querySelector('.main-container');
+        
+        // Toggle active state
+        const isActive = iconBtn.classList.contains('active');
+        if (isActive) {
+            // Collapse sidebar
+            sidebar.classList.remove('expanded');
+            mainContainer.classList.remove('sidebar-expanded');
+            iconBtn.classList.remove('active');
+            this.activeExtension = null;
+            return;
+        }
+
+        // Activate the clicked extension
+        document.querySelectorAll('.extension-icon-button').forEach(btn => btn.classList.remove('active'));
+        iconBtn.classList.add('active');
+        
+        sidebar.classList.add('expanded');
+        mainContainer.classList.add('sidebar-expanded');
+        sidebar.style.width = `${this.sidebarWidth}px`;
+        
+        this.activeExtension = extId;
+        
+        // Load extension content
+        extensionsList.innerHTML = `
+            <div class="extension-item">
+                <div class="extension-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <div>Loading Nova Gists...</div>
+                </div>
+                <iframe class="extension-webview" src="https://gists.nova.xxavvgroup.com" frameborder="0"></iframe>
+            </div>
+        `;
+
+        const webview = extensionsList.querySelector('.extension-webview');
+        webview.addEventListener('load', () => {
+            extensionsList.querySelector('.extension-loading').remove();
+            webview.classList.add('loaded');
+        });
+    }
+
+    installExtension(extId, btn) {
+        if (this.installedExtensions.has(extId)) return;
+        
+        this.installedExtensions.add(extId);
+        localStorage.setItem('installedExtensions', JSON.stringify([...this.installedExtensions]));
+        
+        // Update button state
+        btn.textContent = 'Installed';
+        btn.disabled = true;
+        
+        // Update sidebar icons
+        this.loadInstalledExtensions();
+        
+        // Hide store modal
+        document.getElementById('extensionStore').classList.remove('active');
+        
+        this.notifications.show('Extension installed successfully', 'success');
+    }
+
+    removeExtension(extensionId) {
+        this.installedExtensions.delete(extensionId);
+        localStorage.setItem('installedExtensions', JSON.stringify([...this.installedExtensions]));
+        
+        // Update store button
+        const storeBtn = document.querySelector(`.extension-card[data-extension="${extensionId}"] .install-btn`);
+        if (storeBtn) {
+            storeBtn.textContent = 'Install';
+            storeBtn.disabled = false;
+        }
+        
+        // Remove icon and collapse sidebar if it's active
+        if (this.activeExtension === extensionId) {
+            const sidebar = document.querySelector('.extensions-sidebar');
+            const mainContainer = document.querySelector('.main-container');
+            sidebar.classList.remove('expanded');
+            mainContainer.classList.remove('sidebar-expanded');
+            this.activeExtension = null;
+        }
+        
+        this.loadInstalledExtensions();
+        this.notifications.show('Extension removed', 'info');
     }
 }
 
