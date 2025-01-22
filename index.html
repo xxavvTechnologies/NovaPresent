@@ -1,292 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-TMC4G33B54"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-TMC4G33B54');
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- SEO Meta Tags -->
-    <title>Nova Docs - Professional Online Document Editor</title>
-    <meta name="description" content="Nova Docs is a powerful, free online document editor. Create, edit, and share documents easily.">
-    <meta name="keywords" content="document editor, online editor, text editor, rich text editor, Nova Docs">
-    <meta name="author" content="xxavvTechnologies">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://docs.nova.xxavvgroup.com/">
-
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="Nova Docs - Online Document Editor">
-    <meta property="og:description" content="Create and edit documents with Nova Docs' powerful online editor. Free, secure, and easy to use.">
-    <meta property="og:image" content="https://d2zcpib8duehag.cloudfront.net/Nova-Docs-Preview.png">
-    <meta property="og:url" content="https://docs.nova.xxavvgroup.com/">
-    <meta property="og:type" content="website">
-
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nova Docs - Professional Online Document Editor">
-    <meta name="twitter:description" content="Create and edit documents with Nova Docs' powerful online editor. Free, secure, and easy to use.">
-    <meta name="twitter:image" content="https://d2zcpib8duehag.cloudfront.net/Nova-Docs-Preview.png">
-
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "http://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Nova Docs",
-        "applicationCategory": "Document Editor",
-        "operatingSystem": "Web",
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-        },
-        "author": {
-            "@type": "Organization",
-            "name": "xxavvTechnologies",
-            "url": "https://tech.xxavvgroup.com"
-        },
-        "description": "A powerful, free online document editor. Create, edit, and share documents easily.",
-        "image": "https://d2zcpib8duehag.cloudfront.net/Nova%20Docs%20w_o%20text.png",
-        "screenshot": "https://d2zcpib8duehag.cloudfront.net/Nova-Docs-Preview.png"
-    }
-    </script>
-
-    <link rel="icon" type="image/x-icon" href="https://d2zcpib8duehag.cloudfront.net/Nova%20Docs%20w_o%20text.png">
+    <title>Nova Present</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.auth0.com/js/auth0-spa-js/1.13/auth0-spa-js.production.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
-</head>
-<body>
-    <div id="update-banner" class="update-banner">
-        <span>🎉 We've updated Nova Docs with exciting new features! </span>
-        <a href="changelog.html">See what's new</a>
-        <button class="close-banner" onclick="dismissBanner()">×</button>
-    </div>
-    <header>
-        <div class="logo-container">
-            <img src="https://d2zcpib8duehag.cloudfront.net/Nova%20Docs%20w_o%20text.png" alt="Nova Docs" height="45">
-            <div class="logo-submenu">
-                <h3>Nova Docs</h3>
-                <div class="app-info">
-                    <p><span class="label">Documents:</span> <span id="document-count">Loading...</span></p>
-                    <p><span class="label">Version:</span> <span>2.5.2</span></p>
-                    <p><span class="label">Developer:</span> <span>xxavvTechnologies</span></p>
-                    <p><span class="label">Last Updated:</span> <span>January 20, 2025</span></p>
-                </div>
-                <a href="https://tech.xxavvgroup.com/nova/docs" target="_blank">
-                    Legal & Technical Information →
-                </a>
-            </div>
-        </div>
-        <div class="user-dropdown">
-            <button class="dropbtn" id="profile-button">
-                <i class="fas fa-user-circle"></i>
-            </button>
-            <div class="dropdown-content" id="dropdown-menu">
-                <!-- Placeholder for user dropdown links -->
-            </div>
-        </div>
-    </header>
-    
-    <!-- Notification Container -->
-    <div class="notification-container" id="notification-container"></div>
-    
-    <!-- Document Name Input -->
-    <div class="document-actions">
-        <input 
-            type="text" 
-            id="document-name" 
-            placeholder="Enter document name" 
-            class="document-name-input"
-        >
-        <div class="document-buttons">
-            <button id="save-document" class="btn btn-primary">
-                <i class="fas fa-save"></i> Save
-            </button>
-            <button id="new-document" class="btn btn-secondary">
-                <i class="fas fa-plus"></i> New
-            </button>
-            <button id="export-txt" class="btn btn-export">
-                <i class="fas fa-file-export"></i> Export TXT
-            </button>
-            <button id="export-html" class="btn btn-export">
-                <i class="fas fa-file-code"></i> Export HTML
-            </button>
-        </div>
-    </div>
-
-    <!-- Document List -->
-    <div class="document-list-container">
-        <button class="btn btn-secondary toggle-list" id="toggle-document-list">
-            <i class="fas fa-chevron-down"></i> Show Documents
-        </button>
-        <div id="document-list" class="document-list" style="display: none;">
-            <!-- Dynamically populated list of saved documents -->
-        </div>
-    </div>
-    
-    <!-- New Formatting Bar -->
-    <div class="formatting-bar">
-        <div class="formatting-group">
-            <select id="font-select" class="formatting-select">
-                <option value="Arial" selected>Arial</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Courier New">Courier New</option>
-                <option value="Verdana">Verdana</option>
-            </select>
-            <select id="font-size-select" class="formatting-select">
-                <option value="1">12</option>
-                <option value="2">14</option>
-                <option value="3">16</option>
-                <option value="4">18</option>
-                <option value="5">20</option>
-                <option value="6">24</option>
-            </select>
-        </div>
-        
-        <div class="formatting-group">
-            <button class="formatting-btn" data-command="bold" title="Bold">
-                <i class="fas fa-bold"></i>
-            </button>
-            <button class="formatting-btn" data-command="italic" title="Italic">
-                <i class="fas fa-italic"></i>
-            </button>
-            <button class="formatting-btn" data-command="underline" title="Underline">
-                <i class="fas fa-underline"></i>
-            </button>
-            <button class="formatting-btn" data-command="strikethrough" title="Strikethrough">
-                <i class="fas fa-strikethrough"></i>
-            </button>
-        </div>
-        
-        <div class="formatting-group">
-            <button class="formatting-btn" data-command="justifyLeft" title="Align Left">
-                <i class="fas fa-align-left"></i>
-            </button>
-            <button class="formatting-btn" data-command="justifyCenter" title="Align Center">
-                <i class="fas fa-align-center"></i>
-            </button>
-            <button class="formatting-btn" data-command="justifyRight" title="Align Right">
-                <i class="fas fa-align-right"></i>
-            </button>
-            <button class="formatting-btn" data-command="justifyFull" title="Justify">
-                <i class="fas fa-align-justify"></i>
-            </button>
-        </div>
-        
-        <div class="formatting-group">
-            <button class="formatting-btn" data-command="insertUnorderedList" title="Unordered List">
-                <i class="fas fa-list-ul"></i>
-            </button>
-            <button class="formatting-btn" data-command="insertOrderedList" title="Ordered List">
-                <i class="fas fa-list-ol"></i>
-            </button>
-        </div>
-        
-        <div class="formatting-group">
-            <input type="color" id="text-color-picker" class="formatting-color-picker" title="Text Color">
-            <input type="color" id="highlight-color-picker" class="formatting-color-picker" title="Highlight Color">
-        </div>
-        
-        <div class="formatting-group">
-            <button class="formatting-btn" data-command="insertImage" title="Insert Image">
-                <i class="fas fa-image"></i>
-            </button>
-            <button class="formatting-btn" data-command="insertTable" title="Insert Table">
-                <i class="fas fa-table"></i>
-            </button>
-        </div>
-    </div>
-    
-    <!-- Image Upload Modal -->
-    <div id="imageModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Insert Image</h2>
-            <div class="upload-options">
-                <input type="file" id="imageInput" accept="image/*">
-                <button id="uploadImageBtn">Upload</button>
-                <button id="imageUrlBtn">Insert from URL</button>
-            </div>
-            <div id="cropperContainer" style="display: none;">
-                <img id="cropperImage" src="">
-                <div class="cropper-controls">
-                    <button id="rotateLeft">↶ Rotate Left</button>
-                    <button id="rotateRight">↷ Rotate Right</button>
-                    <button id="cropImage">Crop</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Table Modal -->
-    <div id="tableModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Insert Table</h2>
-            <div class="table-controls">
-                <div class="input-group">
-                    <label for="tableRows">Rows:</label>
-                    <input type="number" id="tableRows" min="1" max="50" value="3">
-                </div>
-                <div class="input-group">
-                    <label for="tableCols">Columns:</label>
-                    <input type="number" id="tableCols" min="1" max="20" value="3">
-                </div>
-                <button id="insertTableBtn">Insert Table</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Editor Area -->
-    <main>
-        <div id="editor" contenteditable="true" class="editor">
-        </div>
-    </main>
-
-    <script src="authentication.js"></script>
-    <script src="app.js" type="module"></script>
-    <script>
-        document.getElementById("profile-button").addEventListener("click", function() {
-            var dropdown = document.querySelector(".user-dropdown");
-            dropdown.classList.toggle("active");
-        });
-
-        document.getElementById("toggle-document-list").addEventListener("click", function () {
-    const documentList = document.getElementById("document-list");
-    const toggleButton = this;
-
-    if (documentList.style.display === "none") {
-        documentList.style.display = "block";
-        toggleButton.innerHTML = '<i class="fas fa-chevron-up"></i> Hide Documents';
-    } else {
-        documentList.style.display = "none";
-        toggleButton.innerHTML = '<i class="fas fa-chevron-down"></i> Show Documents';
-    }
-});
-
-        function dismissBanner() {
-            const banner = document.getElementById('update-banner');
-            banner.style.display = 'none';
-            localStorage.setItem('updbanner2.5', 'true');
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .panel-toggles {
+            display: none;
+            gap: 0.5rem;
         }
 
-        // Check if banner was previously dismissed
-        window.addEventListener('DOMContentLoaded', () => {
-            const isDismissed = localStorage.getItem('updbanner2.5');
-            if (isDismissed === 'true') {
-                const banner = document.getElementById('update-banner');
-                banner.style.display = 'none';
+        .panel-toggles button {
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .panel-toggles button:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .panel-toggles {
+                display: flex;
             }
-        });
-    </script>
+        }
+    </style>
+</head>
+<body>
+    <div class="top-header">
+        <div class="logo-container">
+            <img src="logo.png" alt="NovaPresent">
+            <span>NovaPresent</span>
+        </div>
+        <div class="presentation-title" contenteditable="true" id="presentationTitle">Untitled Presentation</div>
+        <div class="presentation-controls">
+            <button id="presentationManager" class="presentation-manager-btn">
+                <i class="fas fa-folder"></i> Presentations
+            </button>
+            <button id="newSlide"><i class="fas fa-plus"></i> Add Slide</button>
+            <button id="present"><i class="fas fa-play"></i> Present</button>
+            <div id="saveStatus" class="save-status"></div>
+        </div>
+    </div>
+
+    <!-- Replace presentations modal -->
+    <div id="presentationManager" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Presentation Manager</h2>
+                <button class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-actions">
+                <button id="newPresentationBtn" class="primary-btn">
+                    <i class="fas fa-plus"></i> New Presentation
+                </button>
+            </div>
+            <div class="presentations-list" id="presentationsList">
+                <!-- Presentations will be listed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Save indicator -->
+    <div id="saveIndicator" class="save-indicator">Saved</div>
+
+    <div class="main-container">
+        <div class="slides-panel">
+            <div class="slides-list" id="slidesList">
+                <!-- Slides will be added here -->
+            </div>
+        </div>
+
+        <div class="editor-area">
+            <div class="slide-canvas" id="currentSlide">
+                <!-- Current slide content -->
+            </div>
+        </div>
+
+        <div class="properties-panel">
+            <h3>Slide Properties</h3>
+            <div class="properties-content">
+                <div class="property-group">
+                    <label>Background Color</label>
+                    <input type="color" id="bgColor" value="#ffffff">
+                </div>
+                
+                <div class="property-group">
+                    <label>Add Elements</label>
+                    <div class="element-tools">
+                        <button id="addTextbox" title="Add Text"><i class="fas fa-font"></i></button>
+                        <button id="addRect" title="Add Rectangle"><i class="fas fa-square"></i></button>
+                        <button id="addCircle" title="Add Circle"><i class="fas fa-circle"></i></button>
+                        <button id="addImage" title="Add Image"><i class="fas fa-image"></i></button>
+                    </div>
+                </div>
+
+                <div class="property-group" id="elementProperties" style="display: none;">
+                    <label>Element Properties</label>
+                    <div class="element-properties">
+                        <input type="color" id="elementColor" title="Color">
+                        <input type="number" id="elementOpacity" min="0" max="100" value="100" title="Opacity">
+                        <button id="bringForward" title="Bring Forward"><i class="fas fa-level-up-alt"></i></button>
+                        <button id="sendBackward" title="Send Backward"><i class="fas fa-level-down-alt"></i></button>
+                        <button id="deleteElement" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+
+                <div class="property-group">
+                    <label>Grid Settings</label>
+                    <div class="grid-controls">
+                        <label>
+                            <input type="checkbox" id="snapToGrid">
+                            Snap to Grid
+                        </label>
+                        <div class="input-group">
+                            <label>Grid Size</label>
+                            <input type="number" id="gridSize" value="20" min="5" max="100">
+                        </div>
+                        <div class="input-group">
+                            <label>Grid Color</label>
+                            <input type="color" id="gridColor" value="#e2e8f0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar" id="richTextToolbar">
+        <div class="toolbar-group">
+            <select title="Font Family" id="fontFamily">
+                <option value="Inter">Inter</option>
+                <option value="Lora">Lora</option>
+                <option value="Merriweather">Merriweather</option>
+                <option value="Arial">Arial</option>
+            </select>
+            <select title="Font Size" id="fontSize">
+                <option value="12">12</option>
+                <option value="14">14</option>
+                <option value="16" selected>16</option>
+                <option value="18">18</option>
+                <option value="24">24</option>
+                <option value="32">32</option>
+                <option value="48">48</option>
+            </select>
+        </div>
+        
+        <div class="toolbar-group">
+            <button title="Bold" id="boldText"><i class="fas fa-bold"></i></button>
+            <button title="Italic" id="italicText"><i class="fas fa-italic"></i></button>
+            <button title="Underline" id="underlineText"><i class="fas fa-underline"></i></button>
+        </div>
+        
+        <div class="toolbar-group">
+            <button title="Align Left" id="alignLeft"><i class="fas fa-align-left"></i></button>
+            <button title="Align Center" id="alignCenter"><i class="fas fa-align-center"></i></button>
+            <button title="Align Right" id="alignRight"><i class="fas fa-align-right"></i></button>
+        </div>
+
+        <div class="toolbar-group">
+            <button title="Bullet List" id="bulletList"><i class="fas fa-list-ul"></i></button>
+            <button title="Numbered List" id="numberedList"><i class="fas fa-list-ol"></i></button>
+        </div>
+
+        <div class="toolbar-group">
+            <input type="color" id="textColor" title="Text Color">
+            <button title="Show Grid" id="toggleGrid"><i class="fas fa-border-all"></i></button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <div id="presentationMode" class="presentation-mode">
+        <div class="presentation-controls">
+            <button id="prevSlide"><i class="fas fa-chevron-left"></i></button>
+            <span id="slideCounter">1/1</span>
+            <button id="nextSlide"><i class="fas fa-chevron-right"></i></button>
+            <button id="exitPresentation"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="presentation-slide"></div>
+    </div>
+
+    <div class="context-menu" id="slideContextMenu">
+        <div class="context-menu-item" data-action="duplicate">
+            <i class="fas fa-clone"></i> Duplicate
+            <span class="shortcut">Ctrl+D</span>
+        </div>
+        <div class="context-menu-item" data-action="copy">
+            <i class="fas fa-copy"></i> Copy
+            <span class="shortcut">Ctrl+C</span>
+        </div>
+        <div class="context-menu-item" data-action="paste">
+            <i class="fas fa-paste"></i> Paste
+            <span class="shortcut">Ctrl+V</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="delete">
+            <i class="fas fa-trash"></i> Delete
+            <span class="shortcut">Del</span>
+        </div>
+    </div>
+
+    <div class="context-menu" id="elementContextMenu">
+        <div class="context-menu-item" data-action="cut">
+            <i class="fas fa-cut"></i> Cut
+            <span class="shortcut">Ctrl+X</span>
+        </div>
+        <div class="context-menu-item" data-action="copy">
+            <i class="fas fa-copy"></i> Copy
+            <span class="shortcut">Ctrl+C</span>
+        </div>
+        <div class="context-menu-item" data-action="paste">
+            <i class="fas fa-paste"></i> Paste
+            <span class="shortcut">Ctrl+V</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="bringForward">
+            <i class="fas fa-level-up-alt"></i> Bring Forward
+            <span class="shortcut">+</span>
+        </div>
+        <div class="context-menu-item" data-action="sendBackward">
+            <i class="fas fa-level-down-alt"></i> Send Backward
+            <span class="shortcut">-</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="delete">
+            <i class="fas fa-trash"></i> Delete
+            <span class="shortcut">Del</span>
+        </div>
+    </div>
 </body>
 </html>
