@@ -249,11 +249,20 @@ class Presentation {
         this.sidebarWidth = parseInt(localStorage.getItem('sidebarWidth')) || 300;
         this.activeExtension = null;
         this.currentPresentationId = localStorage.getItem('lastOpenedPresentation');
+        this.hasUnsavedChanges = false;
         this.init();
         this.initToolbarDrag();
         this.initPanelToggles();
         this.setupGrid();
         this.initExtensions();
+
+        // Add cleanup handler
+        window.addEventListener('beforeunload', (e) => {
+            if (this.hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
     }
 
     init() {
@@ -588,6 +597,7 @@ class Presentation {
             this.updateSlideContent();
             this.manager.savePresentation(this.id, this.title, this.slides);
             this.showMinimalSaveStatus('success');
+            this.hasUnsavedChanges = false;
         } catch (error) {
             this.showMinimalSaveStatus('error');
             console.error('Save error:', error);
@@ -666,6 +676,16 @@ class Presentation {
 
     renderCurrentSlide() {
         const slide = this.slides[this.currentSlideIndex];
+        if (!slide) return;
+
+        // Clean up old elements first
+        Array.from(this.currentSlide.children).forEach(child => {
+            if (child.classList.contains('slide-element')) {
+                child.removeEventListener('mousedown', this.handleMouseDown);
+                child.remove();
+            }
+        });
+
         this.currentSlide.style.backgroundColor = slide.backgroundColor;
         
         // Update properties panel if elements exist
@@ -680,7 +700,7 @@ class Presentation {
         // Clear existing content
         this.currentSlide.innerHTML = '';
 
-        // Add new content
+        // Add new content with proper cleanup
         if (slide.elements && Array.isArray(slide.elements)) {
             slide.elements.forEach(elementData => {
                 try {
@@ -690,11 +710,26 @@ class Presentation {
                         elementData.y
                     );
                     Object.assign(element, elementData);
-                    this.currentSlide.appendChild(element.createElement());
+                    const elementNode = element.createElement();
+                    
+                    // Add proper event handling
+                    elementNode.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                    elementNode.addEventListener('dblclick', () => {
+                        if (elementData.type === 'text') {
+                            elementNode.focus();
+                        }
+                    });
+                    
+                    this.currentSlide.appendChild(elementNode);
                 } catch (error) {
                     console.error('Failed to render element:', error);
                 }
             });
+        }
+
+        // Re-render grid if enabled
+        if (this.gridEnabled) {
+            this.renderGrid();
         }
     }
 
@@ -819,19 +854,29 @@ class Presentation {
         const slide = this.slides[this.currentSlideIndex];
         if (!slide) return;
 
-        // Create new slide container
+        // Create new slide with proper scaling
         const newSlide = document.createElement('div');
         newSlide.className = 'slide-content';
         newSlide.style.backgroundColor = slide.backgroundColor;
 
+        // Calculate proper scale based on viewport
+        const scale = Math.min(
+            window.innerWidth / 1280,
+            window.innerHeight / 720
+        ) * 0.9;
+
+        newSlide.style.transform = `scale(${scale})`;
+
         // Add transition classes
         newSlide.classList.add(`slide-enter-${direction}`);
 
-        // Render slide elements
+        // Render slide elements with proper styling and positioning
         if (slide.elements && Array.isArray(slide.elements)) {
             slide.elements.forEach(elementData => {
                 const element = document.createElement('div');
                 element.className = `slide-element ${elementData.type}-element`;
+                
+                // Copy all styles and attributes
                 Object.assign(element.style, {
                     position: 'absolute',
                     left: `${elementData.x}px`,
@@ -839,13 +884,47 @@ class Presentation {
                     width: `${elementData.width}px`,
                     height: `${elementData.height}px`,
                     zIndex: elementData.zIndex,
+                    transform: elementData.transform || '',
                     backgroundColor: elementData.type !== 'text' ? elementData.color : 'transparent',
                     opacity: elementData.type !== 'text' ? elementData.opacity / 100 : 1,
-                    borderRadius: elementData.type === 'circle' ? '50%' : ''
+                    borderRadius: elementData.type === 'circle' ? '50%' : '',
+                    border: elementData.border || '',
+                    fontSize: elementData.fontSize || '',
+                    fontFamily: elementData.fontFamily || '',
+                    color: elementData.textColor || '',
+                    fontWeight: elementData.fontWeight || '',
+                    fontStyle: elementData.fontStyle || '',
+                    textDecoration: elementData.textDecoration || '',
+                    textAlign: elementData.textAlign || '',
+                    lineHeight: elementData.lineHeight || ''
                 });
 
                 if (elementData.type === 'text') {
+                    // Preserve text formatting
                     element.innerHTML = elementData.content || '';
+                } else if (elementData.type === 'polygon' || elementData.type === 'freeform') {
+                    // Handle SVG elements
+                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svg.setAttribute('width', '100%');
+                    svg.setAttribute('height', '100%');
+                    
+                    if (elementData.type === 'polygon') {
+                        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        polygon.setAttribute('points', elementData.points.join(' '));
+                        polygon.setAttribute('fill', elementData.color);
+                        polygon.setAttribute('opacity', elementData.opacity / 100);
+                        svg.appendChild(polygon);
+                    } else {
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        path.setAttribute('d', elementData.pathData);
+                        path.setAttribute('stroke', elementData.color);
+                        path.setAttribute('stroke-width', '2');
+                        path.setAttribute('fill', 'none');
+                        path.setAttribute('opacity', elementData.opacity / 100);
+                        svg.appendChild(path);
+                    }
+                    
+                    element.appendChild(svg);
                 }
 
                 newSlide.appendChild(element);
@@ -993,196 +1072,223 @@ class Presentation {
     }
 
     setupPresentationList() {
+        // Get fresh data
+        const presentations = this.manager.getAllPresentations();
         const organizer = document.createElement('div');
         organizer.className = 'presentation-organizer';
-        
-        // Add organize controls
+
+        // Create header with controls
         organizer.innerHTML = `
             <div class="organize-controls">
                 <button class="primary-btn" id="newFolder">
                     <i class="fas fa-folder-plus"></i> New Folder
                 </button>
-                <select id="viewMode" class="secondary-btn">
-                    <option value="all">All Presentations</option>
-                    <option value="folders">By Folders</option>
-                </select>
+                <div class="view-controls">
+                    <select id="viewMode" class="secondary-btn">
+                        <option value="all">All Presentations</option>
+                        <option value="folders">By Folders</option>
+                    </select>
+                    <button id="refreshList" class="secondary-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
             </div>
+            <div id="presentationsContainer"></div>
         `;
-
-        const presentations = this.manager.getAllPresentations();
-        const folders = this.manager.folders;
-
-        // Render folders view
-        Object.entries(folders).forEach(([folderId, folder]) => {
-            const folderElement = this.createFolderElement(folderId, folder, presentations);
-            organizer.appendChild(folderElement);
-        });
 
         this.presentationsList.innerHTML = '';
         this.presentationsList.appendChild(organizer);
+
+        const container = organizer.querySelector('#presentationsContainer');
+        
+        // Render all presentations first
+        const allPresentationsSection = document.createElement('div');
+        allPresentationsSection.className = 'presentations-section';
+        
+        Object.entries(presentations).forEach(([key, p]) => {
+            const presentationElement = this.createPresentationElement(p);
+            allPresentationsSection.appendChild(presentationElement);
+        });
+        
+        container.appendChild(allPresentationsSection);
+
+        // Then render folders
+        Object.entries(this.manager.folders).forEach(([folderId, folder]) => {
+            if (folderId !== 'default') {
+                const folderElement = this.createFolderElement(folderId, folder, presentations);
+                container.appendChild(folderElement);
+            }
+        });
 
         // Add event listeners
         document.getElementById('newFolder').addEventListener('click', () => {
             const name = prompt('Enter folder name:');
             if (name) {
-                const folderId = this.manager.createFolder(name);
-                this.setupPresentationList();
+                this.manager.createFolder(name);
+                this.setupPresentationList(); // Refresh the list
             }
         });
 
         document.getElementById('viewMode').addEventListener('change', (e) => {
-            const presentations = document.querySelectorAll('.presentation-item');
-            const folders = document.querySelectorAll('.folder-section');
+            const isFolder = e.target.value === 'folders';
+            container.querySelectorAll('.presentations-section').forEach(section => {
+                section.style.display = !isFolder ? 'block' : 'none';
+            });
+            container.querySelectorAll('.folder-section').forEach(folder => {
+                folder.style.display = isFolder ? 'block' : 'none';
+            });
+        });
+
+        document.getElementById('refreshList').addEventListener('click', () => {
+            this.setupPresentationList();
+        });
+    }
+
+    createPresentationElement(presentation) {
+        const div = document.createElement('div');
+        div.className = `presentation-item ${presentation.id === this.currentPresentationId ? 'active' : ''}`;
+        div.dataset.id = presentation.id;
+        
+        div.innerHTML = `
+            <div class="presentation-info">
+                <div class="presentation-title">${presentation.title}</div>
+                <div class="presentation-meta">
+                    <span class="presentation-date">
+                        <i class="far fa-clock"></i> 
+                        ${new Date(presentation.lastModified).toLocaleDateString()}
+                    </span>
+                    <span class="presentation-slides">
+                        <i class="far fa-file-powerpoint"></i> 
+                        ${presentation.slides?.length || 0} slides
+                    </span>
+                </div>
+            </div>
+            <div class="presentation-actions">
+                <select class="move-to-folder secondary-btn">
+                    <option value="">Move to...</option>
+                    ${Object.entries(this.manager.folders)
+                        .map(([id, f]) => `<option value="${id}">${f.name}</option>`)
+                        .join('')}
+                </select>
+                <button class="secondary-btn edit-btn" title="Rename">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="primary-btn open-btn" title="Open">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="delete-btn" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+
+        // Add event listeners
+        div.querySelector('.open-btn').addEventListener('click', () => {
+            this.loadAndClose(presentation.id);
+        });
+
+        div.querySelector('.edit-btn').addEventListener('click', () => {
+            const titleElement = div.querySelector('.presentation-title');
+            const currentTitle = titleElement.textContent;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentTitle;
+            input.className = 'presentation-title-input';
             
-            if (e.target.value === 'folders') {
-                presentations.forEach(p => p.style.display = 'none');
-                folders.forEach(f => f.style.display = 'block');
-            } else {
-                presentations.forEach(p => p.style.display = 'flex');
-                folders.forEach(f => f.style.display = 'none');
+            titleElement.replaceWith(input);
+            input.focus();
+            
+            input.addEventListener('blur', () => {
+                if (input.value && input.value !== currentTitle) {
+                    presentation.title = input.value;
+                    this.manager.savePresentation(presentation.id, presentation.title, presentation.slides);
+                    titleElement.textContent = input.value;
+                }
+                input.replaceWith(titleElement);
+            });
+
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+            });
+        });
+
+        div.querySelector('.delete-btn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to delete this presentation?')) {
+                this.deletePresentation(presentation.id);
             }
         });
+
+        const moveSelect = div.querySelector('.move-to-folder');
+        moveSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                this.manager.movePresentation(presentation.id, e.target.value);
+                this.setupPresentationList();
+            }
+        });
+
+        return div;
     }
 
     createFolderElement(folderId, folder, presentations) {
         const div = document.createElement('div');
         div.className = 'folder-section';
+        div.dataset.folderId = folderId;
+        
         div.innerHTML = `
-            <div class="folder-header" data-folder="${folderId}">
+            <div class="folder-header">
                 <i class="fas fa-chevron-right folder-toggle"></i>
                 <span class="folder-name">${folder.name}</span>
-                <input type="text" class="folder-name-input" value="${folder.name}">
                 <div class="folder-actions">
-                    ${folderId !== 'default' ? `
-                        <button class="secondary-btn rename-folder">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="secondary-btn delete-folder">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-            <div class="folder-content">
-                ${folder.presentations.map(id => {
-                    const p = presentations[`presentation_${id}`];
-                    if (!p) return '';
-                    return this.renderPresentationItem(p, true);
-                }).join('')}
-            </div>
-        `;
-
-        // Add folder event listeners
-        const header = div.querySelector('.folder-header');
-        const content = div.querySelector('.folder-content');
-        const toggle = div.querySelector('.folder-toggle');
-        
-        header.addEventListener('click', (e) => {
-            if (e.target.closest('.folder-actions')) return;
-            content.classList.toggle('expanded');
-            toggle.classList.toggle('expanded');
-        });
-
-        const renameBtn = div.querySelector('.rename-folder');
-        if (renameBtn) {
-            renameBtn.addEventListener('click', () => {
-                const nameSpan = div.querySelector('.folder-name');
-                const nameInput = div.querySelector('.folder-name-input');
-                
-                nameSpan.style.display = 'none';
-                nameInput.classList.add('active');
-                nameInput.focus();
-                
-                nameInput.addEventListener('blur', () => {
-                    this.manager.renameFolder(folderId, nameInput.value);
-                    nameSpan.textContent = nameInput.value;
-                    nameSpan.style.display = 'block';
-                    nameInput.classList.remove('active');
-                });
-            });
-        }
-
-        const deleteBtn = div.querySelector('.delete-folder');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', () => {
-                if (confirm('Delete this folder? Presentations will be moved to "All Presentations"')) {
-                    this.manager.deleteFolder(folderId);
-                    this.setupPresentationList();
-                }
-            });
-        }
-
-        return div;
-    }
-
-    renderPresentationItem(p, inFolder = false) {
-        // ... existing presentation item HTML ...
-        const html = `
-            <div class="presentation-item ${p.id === this.currentPresentationId ? 'active' : ''}" 
-                 data-id="${p.id}">
-                ${p.id === this.currentPresentationId ? '<div class="active-badge">Current</div>' : ''}
-                <div class="presentation-info">
-                    <div class="presentation-title">${p.title}</div>
-                    <input type="text" class="presentation-title-input" value="${p.title}">
-                    <div class="presentation-date">Last modified: ${new Date(p.lastModified).toLocaleString()}</div>
-                </div>
-                <div class="presentation-actions">
-                    ${!inFolder ? `
-                        <select class="move-to-folder secondary-btn">
-                            <option value="">Move to folder...</option>
-                            ${Object.entries(this.manager.folders)
-                                .map(([id, f]) => `<option value="${id}">${f.name}</option>`)
-                                .join('')}
-                        </select>
-                    ` : ''}
-                    <button class="secondary-btn rename-presentation">
+                    <button class="secondary-btn rename-folder">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="primary-btn" onclick="presentation.loadAndClose(${p.id})">
-                        <i class="fas fa-folder-open"></i> Open
-                    </button>
-                    <button class="delete-btn" onclick="presentation.deletePresentation(${p.id})">
+                    <button class="secondary-btn delete-folder">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>
+            <div class="folder-content"></div>
         `;
 
-        const template = document.createElement('div');
-        template.innerHTML = html;
-        const element = template.firstElementChild;
-
-        // Add rename functionality
-        const renameBtn = element.querySelector('.rename-presentation');
-        renameBtn.addEventListener('click', () => {
-            const titleDiv = element.querySelector('.presentation-title');
-            const titleInput = element.querySelector('.presentation-title-input');
-            
-            titleDiv.style.display = 'none';
-            titleInput.classList.add('active');
-            titleInput.focus();
-            
-            titleInput.addEventListener('blur', () => {
-                p.title = titleInput.value;
-                this.manager.savePresentation(p.id, p.title, p.slides);
-                titleDiv.textContent = titleInput.value;
-                titleDiv.style.display = 'block';
-                titleInput.classList.remove('active');
-            });
+        // Add folder presentations
+        const content = div.querySelector('.folder-content');
+        folder.presentations.forEach(id => {
+            const presentation = presentations[`presentation_${id}`];
+            if (presentation) {
+                content.appendChild(this.createPresentationElement(presentation));
+            }
         });
 
-        // Add folder move functionality
-        const moveSelect = element.querySelector('.move-to-folder');
-        if (moveSelect) {
-            moveSelect.addEventListener('change', (e) => {
-                if (e.target.value) {
-                    this.manager.movePresentation(p.id, e.target.value);
-                    this.setupPresentationList();
-                }
-            });
-        }
+        // Add folder event listeners
+        const header = div.querySelector('.folder-header');
+        const toggle = div.querySelector('.folder-toggle');
+        
+        header.addEventListener('click', (e) => {
+            if (!e.target.closest('.folder-actions')) {
+                content.classList.toggle('expanded');
+                toggle.classList.toggle('expanded');
+            }
+        });
 
-        return element.outerHTML;
+        div.querySelector('.rename-folder').addEventListener('click', () => {
+            const nameSpan = div.querySelector('.folder-name');
+            const newName = prompt('Enter new folder name:', folder.name);
+            if (newName && newName !== folder.name) {
+                this.manager.renameFolder(folderId, newName);
+                nameSpan.textContent = newName;
+            }
+        });
+
+        div.querySelector('.delete-folder').addEventListener('click', () => {
+            if (confirm('Delete this folder? Presentations will be moved to All Presentations')) {
+                this.manager.deleteFolder(folderId);
+                this.setupPresentationList();
+            }
+        });
+
+        return div;
     }
 
     loadAndClose(id) {
@@ -1235,6 +1341,16 @@ class Presentation {
         if (centerV) {
             centerV.addEventListener('click', () => this.centerElementVertically());
         }
+
+        // Add new shape tools
+        document.getElementById('addPolygon').addEventListener('click', () => this.startDrawingPolygon());
+        document.getElementById('addLine').addEventListener('click', () => this.startDrawingLine());
+        document.getElementById('addArrow').addEventListener('click', () => this.startDrawingLine(true));
+        document.getElementById('addFreeform').addEventListener('click', () => this.startFreeformDrawing());
+        
+        // Add import handler
+        document.getElementById('importSlides').addEventListener('click', () => this.showImportModal());
+        document.getElementById('slideUpload').addEventListener('change', (e) => this.handleSlideImport(e));
     }
 
     addElement(type) {
@@ -1350,10 +1466,14 @@ class Presentation {
     handleMouseUp() {
         if (this.isDragging || this.isResizing) {
             this.updateElementData();
-            this.save();
+            this.handleElementOperation();
         }
         this.isDragging = false;
         this.isResizing = false;
+
+        // Remove global event listeners
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
     }
 
     selectElement(element) {
@@ -1412,14 +1532,17 @@ class Presentation {
     deleteSelectedElement() {
         try {
             if (!this.selectedElement) return;
-
+            
+            // Remove event listeners first
+            this.selectedElement.removeEventListener('mousedown', this.handleMouseDown);
+            
             const elementId = this.selectedElement.id.replace('element-', '');
             this.slides[this.currentSlideIndex].elements = 
                 this.slides[this.currentSlideIndex].elements.filter(e => e.id !== parseInt(elementId));
             
             this.selectedElement.remove();
             this.deselectElement();
-            this.save();
+            this.handleElementOperation();
             this.notifications.show('Element deleted', 'success');
         } catch (error) {
             this.notifications.show('Failed to delete element', 'error');
@@ -1499,23 +1622,31 @@ class Presentation {
         };
 
         // Text formatting
-        tools.bold.onclick = () => document.execCommand('bold', false);
-        tools.italic.onclick = () => document.execCommand('italic', false);
-        tools.underline.onclick = () => document.execCommand('underline', false);
+        const formatCommand = (command, value = null) => {
+            if (this.selectedElement?.isContentEditable) {
+                document.execCommand(command, false, value);
+                this.updateElementData();
+                this.handleElementOperation();
+            }
+        };
+
+        tools.bold.onclick = () => formatCommand('bold');
+        tools.italic.onclick = () => formatCommand('italic');
+        tools.underline.onclick = () => formatCommand('underline');
         
         // Alignment
-        tools.alignLeft.onclick = () => document.execCommand('justifyLeft', false);
-        tools.alignCenter.onclick = () => document.execCommand('justifyCenter', false);
-        tools.alignRight.onclick = () => document.execCommand('justifyRight', false);
+        tools.alignLeft.onclick = () => formatCommand('justifyLeft');
+        tools.alignCenter.onclick = () => formatCommand('justifyCenter');
+        tools.alignRight.onclick = () => formatCommand('justifyRight');
         
         // Lists
-        tools.bulletList.onclick = () => document.execCommand('insertUnorderedList', false);
-        tools.numberedList.onclick = () => document.execCommand('insertOrderedList', false);
+        tools.bulletList.onclick = () => formatCommand('insertUnorderedList');
+        tools.numberedList.onclick = () => formatCommand('insertOrderedList');
         
         // Font controls
-        tools.fontFamily.onchange = (e) => document.execCommand('fontName', false, e.target.value);
-        tools.fontSize.onchange = (e) => document.execCommand('fontSize', false, e.target.value);
-        tools.textColor.onchange = (e) => document.execCommand('foreColor', false, e.target.value);
+        tools.fontFamily.onchange = (e) => formatCommand('fontName', e.target.value);
+        tools.fontSize.onchange = (e) => formatCommand('fontSize', e.target.value);
+        tools.textColor.onchange = (e) => formatCommand('foreColor', e.target.value);
 
         // Grid controls
         tools.toggleGrid.onclick = () => this.toggleGrid();
@@ -1859,6 +1990,26 @@ class Presentation {
         });
 
         this.loadInstalledExtensions();
+
+        // Add visibility check and reset
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && this.activeExtension) {
+                const sidebar = document.querySelector('.extensions-sidebar');
+                const iconBtn = document.querySelector(`.extension-icon-button[data-extension="${this.activeExtension}"]`);
+                if (!sidebar.classList.contains('expanded') && iconBtn) {
+                    this.toggleExtension(this.activeExtension, iconBtn);
+                }
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const sidebar = document.querySelector('.extensions-sidebar');
+            if (sidebar.classList.contains('expanded')) {
+                const mainContainer = document.querySelector('.main-container');
+                mainContainer.classList.add('sidebar-expanded');
+            }
+        });
     }
 
     loadInstalledExtensions() {
@@ -1885,41 +2036,48 @@ class Presentation {
         
         // Toggle active state
         const isActive = iconBtn.classList.contains('active');
+        
+        // First clear all active states
+        document.querySelectorAll('.extension-icon-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
         if (isActive) {
             // Collapse sidebar
             sidebar.classList.remove('expanded');
             mainContainer.classList.remove('sidebar-expanded');
-            iconBtn.classList.remove('active');
             this.activeExtension = null;
-            return;
-        }
-
-        // Activate the clicked extension
-        document.querySelectorAll('.extension-icon-button').forEach(btn => btn.classList.remove('active'));
-        iconBtn.classList.add('active');
-        
-        sidebar.classList.add('expanded');
-        mainContainer.classList.add('sidebar-expanded');
-        sidebar.style.width = `${this.sidebarWidth}px`;
-        
-        this.activeExtension = extId;
-        
-        // Load extension content
-        extensionsList.innerHTML = `
-            <div class="extension-item">
-                <div class="extension-loading">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <div>Loading Nova Gists...</div>
+            
+            // Clear content after transition
+            setTimeout(() => {
+                if (!sidebar.classList.contains('expanded')) {
+                    extensionsList.innerHTML = '';
+                }
+            }, 300);
+        } else {
+            // Activate the clicked extension
+            iconBtn.classList.add('active');
+            sidebar.classList.add('expanded');
+            mainContainer.classList.add('sidebar-expanded');
+            this.activeExtension = extId;
+            
+            // Load extension content
+            extensionsList.innerHTML = `
+                <div class="extension-item">
+                    <div class="extension-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <div>Loading extension...</div>
+                    </div>
+                    <iframe class="extension-webview" src="https://gists.nova.xxavvgroup.com" frameborder="0"></iframe>
                 </div>
-                <iframe class="extension-webview" src="https://gists.nova.xxavvgroup.com" frameborder="0"></iframe>
-            </div>
-        `;
+            `;
 
-        const webview = extensionsList.querySelector('.extension-webview');
-        webview.addEventListener('load', () => {
-            extensionsList.querySelector('.extension-loading').remove();
-            webview.classList.add('loaded');
-        });
+            const webview = extensionsList.querySelector('.extension-webview');
+            webview.addEventListener('load', () => {
+                extensionsList.querySelector('.extension-loading')?.remove();
+                webview.classList.add('loaded');
+            });
+        }
     }
 
     installExtension(extId, btn) {
@@ -1964,9 +2122,303 @@ class Presentation {
         this.loadInstalledExtensions();
         this.notifications.show('Extension removed', 'info');
     }
+
+    startDrawingPolygon() {
+        this.drawingMode = 'polygon';
+        this.points = [];
+        this.currentSlide.style.cursor = 'crosshair';
+        
+        const updatePreview = (e) => {
+            const rect = this.currentSlide.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (this.points.length > 0) {
+                const lastPoint = this.points[this.points.length - 1];
+                if (this.previewLine) this.previewLine.remove();
+                
+                this.previewLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                this.previewLine.setAttribute('x1', lastPoint[0]);
+                this.previewLine.setAttribute('y1', lastPoint[1]);
+                this.previewLine.setAttribute('x2', x);
+                this.previewLine.setAttribute('y2', y);
+                this.previewLine.setAttribute('stroke', this.elementColor.value);
+                this.previewLine.setAttribute('stroke-width', '2');
+                this.previewLine.setAttribute('stroke-dasharray', '4');
+                this.tempElement.appendChild(this.previewLine);
+            }
+        };
+        
+        const clickHandler = (e) => {
+            const rect = this.currentSlide.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (this.points.length === 0) {
+                this.points.push([x, y]);
+                this.tempElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                this.tempElement.setAttribute('width', '100%');
+                this.tempElement.setAttribute('height', '100%');
+                this.tempElement.style.position = 'absolute';
+                this.tempElement.style.left = '0';
+                this.tempElement.style.top = '0';
+                this.tempElement.classList.add('slide-element', 'polygon-element');
+                this.currentSlide.appendChild(this.tempElement);
+                
+                this.currentSlide.addEventListener('mousemove', updatePreview);
+            } else {
+                this.points.push([x, y]);
+                this.updatePolygonPath();
+            }
+        };
+        
+        this.currentSlide.addEventListener('click', clickHandler);
+        
+        // Double click to finish
+        this.currentSlide.addEventListener('dblclick', () => {
+            if (this.points.length >= 3) {
+                this.currentSlide.removeEventListener('mousemove', updatePreview);
+                this.currentSlide.removeEventListener('click', clickHandler);
+                if (this.previewLine) this.previewLine.remove();
+                this.finishPolygon();
+            }
+        }, { once: true });
+    }
+
+    updatePolygonPath() {
+        if (!this.tempElement || this.points.length < 2) return;
+        
+        const polygon = this.tempElement.querySelector('polygon') || 
+                       document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        
+        polygon.setAttribute('points', this.points.map(p => p.join(',')).join(' '));
+        polygon.setAttribute('fill', this.elementColor.value);
+        polygon.setAttribute('opacity', this.elementOpacity.value / 100);
+        
+        if (!polygon.parentElement) {
+            this.tempElement.appendChild(polygon);
+        }
+    }
+
+    finishPolygon() {
+        if (this.points.length < 3) {
+            this.tempElement?.remove();
+            return;
+        }
+
+        const element = {
+            id: Date.now(),
+            type: 'polygon',
+            points: this.points,
+            color: this.elementColor.value,
+            opacity: parseInt(this.elementOpacity.value),
+            x: Math.min(...this.points.map(p => p[0])),
+            y: Math.min(...this.points.map(p => p[1])),
+            width: Math.max(...this.points.map(p => p[0])) - Math.min(...this.points.map(p => p[0])),
+            height: Math.max(...this.points.map(p => p[1])) - Math.min(...this.points.map(p => p[1])),
+            zIndex: 1
+        };
+
+        if (!this.slides[this.currentSlideIndex].elements) {
+            this.slides[this.currentSlideIndex].elements = [];
+        }
+        
+        this.slides[this.currentSlideIndex].elements.push(element);
+        this.save();
+        
+        this.points = [];
+        this.currentSlide.style.cursor = 'default';
+        this.notifications.show('Polygon created', 'success');
+    }
+
+    startFreeformDrawing() {
+        this.drawingMode = 'freeform';
+        this.points = [];
+        this.currentSlide.style.cursor = 'crosshair';
+        
+        this.tempElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        this.tempElement.classList.add('slide-element', 'freeform-element');
+        this.currentSlide.appendChild(this.tempElement);
+        
+        this.currentSlide.addEventListener('mousedown', this.startDrawing);
+        this.currentSlide.addEventListener('mousemove', this.draw);
+        this.currentSlide.addEventListener('mouseup', this.finishDrawing);
+    }
+
+    handleSlideImport(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById('uploadFileName').textContent = file.name;
+        const progress = document.querySelector('.import-progress');
+        progress.style.display = 'block';
+
+        // Simulate conversion progress
+        let percent = 0;
+        const interval = setInterval(() => {
+            percent += 5;
+            document.querySelector('.progress').style.width = `${percent}%`;
+            if (percent >= 100) {
+                clearInterval(interval);
+                this.finishImport();
+            }
+        }, 100);
+
+        // Here you would typically send the file to your server
+        // for processing or use a library to parse the PPTX
+    }
+
+    finishImport() {
+        // Close import modal
+        document.getElementById('importModal').style.display = 'none';
+        
+        // Show success notification
+        this.notifications.show('Presentation imported successfully', 'success');
+        
+        // Reset upload form
+        document.getElementById('slideUpload').value = '';
+        document.getElementById('uploadFileName').textContent = 'No file chosen';
+        document.querySelector('.import-progress').style.display = 'none';
+        document.querySelector('.progress').style.width = '0%';
+    }
+
+    startDrawing = (e) => {
+        if (this.drawingMode !== 'freeform') return;
+        
+        const rect = this.currentSlide.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        this.isDrawing = true;
+        this.points = [[x, y]];
+        
+        // Create SVG path
+        this.drawingPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        this.drawingPath.setAttribute('stroke', this.elementColor.value);
+        this.drawingPath.setAttribute('stroke-width', '2');
+        this.drawingPath.setAttribute('fill', 'none');
+        this.drawingPath.setAttribute('opacity', this.elementOpacity.value / 100);
+        this.tempElement.appendChild(this.drawingPath);
+        
+        // Initial path data
+        const pathData = `M ${x} ${y}`;
+        this.drawingPath.setAttribute('d', pathData);
+    };
+
+    draw = (e) => {
+        if (!this.isDrawing) return;
+        
+        const rect = this.currentSlide.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        this.points.push([x, y]);
+        
+        // Update path data with smooth curve
+        const pathData = this.getSmoothPathData(this.points);
+        this.drawingPath.setAttribute('d', pathData);
+    };
+
+    finishDrawing = (e) => {
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+        
+        if (this.points.length < 2) {
+            this.tempElement?.remove();
+            return;
+        }
+
+        // Create final element data
+        const boundingBox = this.drawingPath.getBBox();
+        const element = {
+            id: Date.now(),
+            type: 'freeform',
+            pathData: this.drawingPath.getAttribute('d'),
+            color: this.elementColor.value,
+            opacity: parseInt(this.elementOpacity.value),
+            x: boundingBox.x,
+            y: boundingBox.y,
+            width: boundingBox.width,
+            height: boundingBox.height,
+            zIndex: 1
+        };
+
+        // Add to slide elements
+        if (!this.slides[this.currentSlideIndex].elements) {
+            this.slides[this.currentSlideIndex].elements = [];
+        }
+        
+        this.slides[this.currentSlideIndex].elements.push(element);
+        this.save();
+        
+        // Reset drawing state
+        this.points = [];
+        this.currentSlide.style.cursor = 'default';
+        this.drawingMode = null;
+        
+        // Remove event listeners
+        this.currentSlide.removeEventListener('mousedown', this.startDrawing);
+        this.currentSlide.removeEventListener('mousemove', this.draw);
+        this.currentSlide.removeEventListener('mouseup', this.finishDrawing);
+        
+        this.notifications.show('Freeform shape created', 'success');
+    };
+
+    getSmoothPathData(points) {
+        if (points.length < 2) return '';
+        
+        let pathData = `M ${points[0][0]} ${points[0][1]}`;
+        
+        // Use quadratic curves for smoother lines
+        for (let i = 1; i < points.length - 1; i++) {
+            const xc = (points[i][0] + points[i + 1][0]) / 2;
+            const yc = (points[i][1] + points[i + 1][1]) / 2;
+            pathData += ` Q ${points[i][0]} ${points[i][1]}, ${xc} ${yc}`;
+        }
+        
+        // Add the last point
+        const last = points[points.length - 1];
+        pathData += ` L ${last[0]} ${last[1]}`;
+        
+        return pathData;
+    }
+
+    handleElementOperation() {
+        this.hasUnsavedChanges = true;
+        this.save();
+    }
+
+    // Add proper cleanup methods
+    cleanup() {
+        // Remove event listeners
+        window.removeEventListener('resize', this.handleResize);
+        document.removeEventListener('keydown', this.handleKeydown);
+        
+        // Clean up elements
+        if (this.selectedElement) {
+            this.deselectElement();
+        }
+
+        // Clean up drawing mode
+        if (this.drawingMode) {
+            this.currentSlide.style.cursor = 'default';
+            this.drawingMode = null;
+        }
+
+        // Save any pending changes
+        if (this.hasUnsavedChanges) {
+            this.save();
+        }
+    }
 }
 
-// Initialize the presentation
+// Proper initialization and cleanup
 window.addEventListener('DOMContentLoaded', () => {
     window.presentation = new Presentation();
+});
+
+window.addEventListener('beforeunload', () => {
+    if (window.presentation) {
+        window.presentation.cleanup();
+    }
 });

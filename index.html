@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nova Present</title>
+    <link rel="icon" type="image/x-icon" href="https://d2zcpib8duehag.cloudfront.net/Nova%20Present%20w%20Text.png">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -36,8 +37,8 @@
 <body>
     <div class="top-header">
         <div class="logo-container">
-            <img src="logo.png" alt="NovaPresent">
-            <span>NovaPresent</span>
+            <img src="https://d2zcpib8duehag.cloudfront.net/Nova%20Present%20w%20Text.png" alt="NovaPresent">
+            <span>Nova Present</span>
         </div>
         <div class="presentation-title" contenteditable="true" id="presentationTitle">Untitled Presentation</div>
         <div class="presentation-controls">
@@ -60,6 +61,12 @@
             <div class="modal-actions">
                 <button id="newPresentationBtn" class="primary-btn">
                     <i class="fas fa-plus"></i> New Presentation
+                </button>
+                <a href="https://central.nova.xxavvgroup.com" class="secondary-btn" target="_blank">
+                    <i class="fas fa-cloud"></i> Open Nova Central
+                </a>
+                <button id="importSlides" class="secondary-btn">
+                    <i class="fas fa-file-import"></i> Import from Google Slides
                 </button>
             </div>
             <div class="presentations-list" id="presentationsList">
@@ -99,6 +106,10 @@
                         <button id="addRect" title="Add Rectangle"><i class="fas fa-square"></i></button>
                         <button id="addCircle" title="Add Circle"><i class="fas fa-circle"></i></button>
                         <button id="addImage" title="Add Image"><i class="fas fa-image"></i></button>
+                        <button id="addPolygon" title="Add Polygon"><i class="fas fa-draw-polygon"></i></button>
+                        <button id="addLine" title="Add Line"><i class="fas fa-slash"></i></button>
+                        <button id="addArrow" title="Add Arrow"><i class="fas fa-long-arrow-alt-right"></i></button>
+                        <button id="addFreeform" title="Add Freeform"><i class="fas fa-pencil-alt"></i></button>
                     </div>
                 </div>
 
@@ -290,6 +301,40 @@
                         <p>Stay tuned for more extensions</p>
                     </div>
                     <button class="install-btn" disabled>Coming Soon</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add import modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import from Google Slides</h2>
+                <button class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="import-steps">
+                    <div class="step">
+                        <h3>1. Export from Google Slides</h3>
+                        <p>Open your presentation in Google Slides and go to File > Download > Microsoft PowerPoint (.pptx)</p>
+                    </div>
+                    <div class="step">
+                        <h3>2. Upload Presentation</h3>
+                        <div class="upload-area">
+                            <input type="file" id="slideUpload" accept=".pptx" hidden>
+                            <button class="primary-btn" onclick="document.getElementById('slideUpload').click()">
+                                <i class="fas fa-upload"></i> Choose File
+                            </button>
+                            <span id="uploadFileName">No file chosen</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="import-progress" style="display: none">
+                    <div class="progress-bar">
+                        <div class="progress"></div>
+                    </div>
+                    <div class="progress-text">Converting slides...</div>
                 </div>
             </div>
         </div>
